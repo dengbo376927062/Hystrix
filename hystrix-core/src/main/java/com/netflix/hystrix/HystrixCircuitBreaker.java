@@ -163,7 +163,7 @@ public interface HystrixCircuitBreaker {
             return !isOpen() || allowSingleTest();
         }
 
-        //老版 hystrix 使用断路器状态CAS 半开控制，这里使用时间CAS控制
+        //新版 hystrix 使用断路器状态CAS 半开控制，这里使用时间CAS控制
         public boolean allowSingleTest() {
             long timeCircuitOpenedOrWasLastTested = circuitOpenedOrLastTestedTime.get();
             // 当前断路器打开，并且超过断路时间窗，尝试cas 设置 最新断路器打开时间，返回 true 允许请求进入
