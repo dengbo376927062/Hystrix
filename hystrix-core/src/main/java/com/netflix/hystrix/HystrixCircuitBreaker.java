@@ -203,10 +203,12 @@ public interface HystrixCircuitBreaker {
                     });
         }
 
+        //标记执行成功  如果断路器当前为半开 CAS 更新为关闭
         @Override
         public void markSuccess() {
             if (status.compareAndSet(Status.HALF_OPEN, Status.CLOSED)) {
                 //This thread wins the race to close the circuit - it resets the stream to start it over from 0
+                //重置指标计数
                 metrics.resetStream();
                 Subscription previousSubscription = activeSubscription.get();
                 if (previousSubscription != null) {
@@ -214,10 +216,12 @@ public interface HystrixCircuitBreaker {
                 }
                 Subscription newSubscription = subscribeToStream();
                 activeSubscription.set(newSubscription);
+                //重置 断路开启时间点
                 circuitOpened.set(-1L);
             }
         }
 
+        //标记执行失败  如果断路器当前为半开 CAS 更新为开启
         @Override
         public void markNonSuccess() {
             if (status.compareAndSet(Status.HALF_OPEN, Status.OPEN)) {

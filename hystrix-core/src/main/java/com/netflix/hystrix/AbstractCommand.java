@@ -366,7 +366,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
         //doOnCompleted handler already did all of the SUCCESS work
         //doOnError handler already did all of the FAILURE/TIMEOUT/REJECTION/BAD_REQUEST work
-        //停止命令清理
+        //停止命令 执行
         final Action0 terminateCommandCleanup = new Action0() {
 
             @Override
@@ -384,6 +384,7 @@ import java.util.concurrent.atomic.AtomicReference;
         final Action0 unsubscribeCommandCleanup = new Action0() {
             @Override
             public void call() {
+                //断路器标记执行失败
                 circuitBreaker.markNonSuccess();
                 if (_cmd.commandState.compareAndSet(CommandState.OBSERVABLE_CHAIN_CREATED, CommandState.UNSUBSCRIBED)) {
                     if (!_cmd.executionResult.containsTerminalEvent()) {
@@ -425,7 +426,7 @@ import java.util.concurrent.atomic.AtomicReference;
             }
         };
 
-        //onNext 钩子 - 转换
+        //onNext 钩子 - 自定义设置结果
         final Func1<R, R> wrapWithAllOnNextHooks = new Func1<R, R>() {
             @Override
             public R call(R r) {
@@ -469,7 +470,7 @@ import java.util.concurrent.atomic.AtomicReference;
                     //TODO make a new error type for this
                     throw new HystrixRuntimeException(FailureType.BAD_REQUEST_EXCEPTION, _cmd.getClass(), getLogMessagePrefix() + " command executed multiple times - this is not permitted.", ex, null);
                 }
-
+                //命令开始执行时间
                 commandStartTimestamp = System.currentTimeMillis();
 
                 //请求日志
@@ -480,13 +481,16 @@ import java.util.concurrent.atomic.AtomicReference;
                     }
                 }
 
-                //是否请求缓存
+                //是否请求缓存 默认开启
                 final boolean requestCacheEnabled = isRequestCachingEnabled();
+                //缓存key 如果需要开启缓存，需要重写该方法 设置缓存key
                 final String cacheKey = getCacheKey();
 
                 /* try from cache first */
+                //开启缓存
                 if (requestCacheEnabled) {
                     HystrixCommandResponseFromCache<R> fromCache = (HystrixCommandResponseFromCache<R>) requestCache.get(cacheKey);
+                    //命中缓存，获取缓存结果发射源（也就是直接获取缓存结果）
                     if (fromCache != null) {
                         isResponseFromCache = true;
                         return handleRequestCacheHitAndEmitValues(fromCache, _cmd);
@@ -503,8 +507,10 @@ import java.util.concurrent.atomic.AtomicReference;
                 // put in cache
                 if (requestCacheEnabled && cacheKey != null) {
                     // wrap it for caching
+                    //构建缓存发射源（注意这里将执行命令）
                     HystrixCachedObservable<R> toCache = HystrixCachedObservable.from(hystrixObservable, _cmd);
                     HystrixCommandResponseFromCache<R> fromCache = (HystrixCommandResponseFromCache<R>) requestCache.putIfAbsent(cacheKey, toCache);
+                    //可能并发请求，再获取一次缓存，如果存在缓存，则新建发射源取消订阅，获取缓存（注意，这里只对线程隔离有效，也说不定无效，因为线程隔离方式执行为异步，可能已经执行完成）
                     if (fromCache != null) {
                         // another thread beat us so we'll use the cached value instead
                         toCache.unsubscribe();
@@ -551,6 +557,7 @@ import java.util.concurrent.atomic.AtomicReference;
             final Action1<Throwable> markExceptionThrown = new Action1<Throwable>() {
                 @Override
                 public void call(Throwable t) {
+                    //事件通知 异常
                     eventNotifier.markEvent(HystrixEventType.EXCEPTION_THROWN, commandKey);
                 }
             };
@@ -559,6 +566,7 @@ import java.util.concurrent.atomic.AtomicReference;
             if (executionSemaphore.tryAcquire()) {
                 try {
                     /* used to track userThreadExecutionTime */
+                    //设置开始调用时间
                     executionResult = executionResult.setInvocationStartTime(System.currentTimeMillis());
                     return executeCommandAndObserve(_cmd)
                             .doOnError(markExceptionThrown)//发生异常时 - 异常事件通知
@@ -973,6 +981,7 @@ import java.util.concurrent.atomic.AtomicReference;
         eventNotifier.markEvent(HystrixEventType.RESPONSE_FROM_CACHE, commandKey);
     }
 
+    //执行命令结束
     private void handleCommandEnd(boolean commandExecutionStarted) {
         //清理timeout 任务
         Reference<TimerListener> tl = timeoutTimer.get();
@@ -980,6 +989,7 @@ import java.util.concurrent.atomic.AtomicReference;
             tl.clear();
         }
 
+        //执行完成 设置 执行时间
         long userThreadLatency = System.currentTimeMillis() - commandStartTimestamp;
         executionResult = executionResult.markUserThreadCompletion((int) userThreadLatency);
         //计数指标
@@ -994,6 +1004,7 @@ import java.util.concurrent.atomic.AtomicReference;
         }
     }
 
+    //信号量拒绝 Fallback
     private Observable<R> handleSemaphoreRejectionViaFallback() {
         Exception semaphoreRejectionException = new RuntimeException("could not acquire a semaphore for execution");
         executionResult = executionResult.setExecutionException(semaphoreRejectionException);
@@ -1004,6 +1015,7 @@ import java.util.concurrent.atomic.AtomicReference;
                 "could not acquire a semaphore for execution", semaphoreRejectionException);
     }
 
+    //断路器 开启状态 Fallback
     private Observable<R> handleShortCircuitViaFallback() {
         // record that we are returning a short-circuited fallback
         eventNotifier.markEvent(HystrixEventType.SHORT_CIRCUITED, commandKey);
@@ -1018,6 +1030,7 @@ import java.util.concurrent.atomic.AtomicReference;
         }
     }
 
+    //线程池 拒绝 Fallback
     private Observable<R> handleThreadPoolRejectionViaFallback(Exception underlying) {
         eventNotifier.markEvent(HystrixEventType.THREAD_POOL_REJECTED, commandKey);
         threadPool.markThreadRejection();
@@ -1025,10 +1038,12 @@ import java.util.concurrent.atomic.AtomicReference;
         return getFallbackOrThrowException(this, HystrixEventType.THREAD_POOL_REJECTED, FailureType.REJECTED_THREAD_EXECUTION, "could not be queued for execution", underlying);
     }
 
+    //time out Fallback
     private Observable<R> handleTimeoutViaFallback() {
         return getFallbackOrThrowException(this, HystrixEventType.TIMEOUT, FailureType.TIMEOUT, "timed-out", new TimeoutException());
     }
 
+    //time out Fallback
     private Observable<R> handleBadRequestByEmittingError(Exception underlying) {
         Exception toEmit = underlying;
 
