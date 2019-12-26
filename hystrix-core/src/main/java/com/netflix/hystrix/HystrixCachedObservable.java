@@ -15,6 +15,7 @@ public class HystrixCachedObservable<R> {
         this.originalSubscription = originalObservable
                 .subscribe(replaySubject);
 
+        //使用 replaySubject 实现缓存
         this.cachedObservable = replaySubject
                 .doOnUnsubscribe(new Action0() {
                     @Override
