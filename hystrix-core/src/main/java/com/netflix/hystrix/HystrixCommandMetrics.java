@@ -337,6 +337,7 @@ public class HystrixCommandMetrics extends HystrixMetrics {
     }
 
     /* package-private */ void markCommandDone(ExecutionResult executionResult, HystrixCommandKey commandKey, HystrixThreadPoolKey threadPoolKey, boolean executionStarted) {
+        //成功、失败、拒绝等计数 用于统计 时间窗 熔断 来源
         HystrixThreadEventStream.getInstance().executionDone(executionResult, commandKey, threadPoolKey);
         if (executionStarted) {
             concurrentExecutionCount.decrementAndGet();

@@ -39,24 +39,42 @@ public abstract class HystrixCommandProperties {
     private static final Logger logger = LoggerFactory.getLogger(HystrixCommandProperties.class);
 
     /* defaults */
+    //滑动窗口大小 默认 10S
     /* package */ static final Integer default_metricsRollingStatisticalWindow = 10000;// default => statisticalWindow: 10000 = 10 seconds (and default of 10 buckets so each bucket is 1 second)
+    //滑动窗口 桶数 默认 10
     private static final Integer default_metricsRollingStatisticalWindowBuckets = 10;// default => statisticalWindowBuckets: 10 = 10 buckets in a 10 second window so each bucket is 1 second
+    //断路器请求熔断阀值数 默认 20
     private static final Integer default_circuitBreakerRequestVolumeThreshold = 20;// default => statisticalWindowVolumeThreshold: 20 requests in 10 seconds must occur before statistics matter
+    //熔断窗口 默认5S  5s后尝试开启
     private static final Integer default_circuitBreakerSleepWindowInMilliseconds = 5000;// default => sleepWindow: 5000 = 5 seconds that we will sleep before trying again after tripping the circuit
+    //断路器请求错误百分比 阀值数 默认 50%
     private static final Integer default_circuitBreakerErrorThresholdPercentage = 50;// default => errorThresholdPercentage = 50 = if 50%+ of requests in 10 seconds are failures or latent then we will trip the circuit
+    //断路器 是否强制开启 默认 false
     private static final Boolean default_circuitBreakerForceOpen = false;// default => forceCircuitOpen = false (we want to allow traffic)
-    /* package */ static final Boolean default_circuitBreakerForceClosed = false;// default => ignoreErrors = false 
+    //断路器 是否强制关闭 默认 false
+    /* package */ static final Boolean default_circuitBreakerForceClosed = false;// default => ignoreErrors = false
+    //执行默认 timeout 时间 线程模式 默认 1S
     private static final Integer default_executionTimeoutInMilliseconds = 1000; // default => executionTimeoutInMilliseconds: 1000 = 1 second
+    //是否开启超时控制 默认 true
     private static final Boolean default_executionTimeoutEnabled = true;
+    //隔离策略 默认 线程隔离
     private static final ExecutionIsolationStrategy default_executionIsolationStrategy = ExecutionIsolationStrategy.THREAD;
+    //执行线程隔离timeOut时，是否中断执行 默认 true
     private static final Boolean default_executionIsolationThreadInterruptOnTimeout = true;
+    //执行线程隔离 取消执行任务 是否中断执行 默认 false
     private static final Boolean default_executionIsolationThreadInterruptOnFutureCancel = false;
     private static final Boolean default_metricsRollingPercentileEnabled = true;
+    //是否开启请求缓存 默认 true 使用请求缓存 需要重写 getCacheKey
     private static final Boolean default_requestCacheEnabled = true;
+    //fallback 信号量 最大数值
     private static final Integer default_fallbackIsolationSemaphoreMaxConcurrentRequests = 10;
+    //是否开启 fallback
     private static final Boolean default_fallbackEnabled = true;
+    //执行 信号量 最大数值
     private static final Integer default_executionIsolationSemaphoreMaxConcurrentRequests = 10;
+    //是否开启请求日志
     private static final Boolean default_requestLogEnabled = true;
+    //是否开启断路器
     private static final Boolean default_circuitBreakerEnabled = true;
     private static final Integer default_metricsRollingPercentileWindow = 60000; // default to 1 minute for RollingPercentile 
     private static final Integer default_metricsRollingPercentileWindowBuckets = 6; // default to 6 buckets (10 seconds each in 60 second window)

@@ -148,10 +148,12 @@ public interface HystrixCircuitBreaker {
 
         @Override
         public boolean allowRequest() {
+            //强制开启
             if (properties.circuitBreakerForceOpen().get()) {
                 // properties have asked us to force the circuit open so we will allow NO requests
                 return false;
             }
+            //强制关闭
             if (properties.circuitBreakerForceClosed().get()) {
                 // we still want to allow isOpen() to perform it's calculations so we simulate normal behavior
                 isOpen();
@@ -161,8 +163,10 @@ public interface HystrixCircuitBreaker {
             return !isOpen() || allowSingleTest();
         }
 
+        //老版 hystrix 使用断路器状态CAS 半开控制，这里使用时间CAS控制
         public boolean allowSingleTest() {
             long timeCircuitOpenedOrWasLastTested = circuitOpenedOrLastTestedTime.get();
+            // 当前断路器打开，并且超过断路时间窗，尝试cas 设置 最新断路器打开时间，返回 true 允许请求进入
             // 1) if the circuit is open
             // 2) and it's been longer than 'sleepWindow' since we opened the circuit
             if (circuitOpen.get() && System.currentTimeMillis() > timeCircuitOpenedOrWasLastTested + properties.circuitBreakerSleepWindowInMilliseconds().get()) {
@@ -179,29 +183,35 @@ public interface HystrixCircuitBreaker {
 
         @Override
         public boolean isOpen() {
+            //打开，直接返回
             if (circuitOpen.get()) {
                 // if we're open we immediately return true and don't bother attempting to 'close' ourself as that is left to allowSingleTest and a subsequent successful test to close
                 return true;
             }
 
+            //当前断路器处于关闭状态，以防万一，再次检测
             // we're closed, so let's see if errors have made us so we should trip the circuit open
             HealthCounts health = metrics.getHealthCounts();
 
+            //请求数达到是否 阀值 默认 10S 20个请求
             // check if we are past the statisticalWindowVolumeThreshold
             if (health.getTotalRequests() < properties.circuitBreakerRequestVolumeThreshold().get()) {
                 // we are not past the minimum volume threshold for the statisticalWindow so we'll return false immediately and not calculate anything
                 return false;
             }
 
+            //请求错误比例到是否 阀值 默认 50%
             if (health.getErrorPercentage() < properties.circuitBreakerErrorThresholdPercentage().get()) {
                 return false;
             } else {
+                //打开断路器
                 // our failure rate is too high, trip the circuit
-                if (circuitOpen.compareAndSet(false, true)) {
+                if (circuitOpen.compareAndSet(false, true)) {//CAS打开
                     // if the previousValue was false then we want to set the currentTime
+                    //设置最后打开时间
                     circuitOpenedOrLastTestedTime.set(System.currentTimeMillis());
                     return true;
-                } else {
+                } else {//多个线程执行，CAS失败 另一个线程做打开操作，直接返回 true
                     // How could previousValue be true? If another thread was going through this code at the same time a race-condition could have
                     // caused another thread to set it to true already even though we were in the process of doing the same
                     // In this case, we know the circuit is open, so let the other thread set the currentTime and report back that the circuit is open
@@ -213,8 +223,9 @@ public interface HystrixCircuitBreaker {
     }
 
     /**
+     * 空实现断路器，当不使用断路器时，使用该实现
      * An implementation of the circuit breaker that does nothing.
-     * 
+     *
      * @ExcludeFromJavadoc
      */
     /* package */static class NoOpCircuitBreaker implements HystrixCircuitBreaker {
