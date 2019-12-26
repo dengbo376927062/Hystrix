@@ -778,6 +778,7 @@ import java.util.concurrent.atomic.AtomicReference;
     }
 
     /**
+     * 失败降级 将在信号量限制下执行，因为降级操作原则上来说不能执行阻塞操作，否则将会出现线程阻塞和堆积，影响服务状态
      * Execute <code>getFallback()</code> within protection of a semaphore that limits number of concurrent executions.
      * <p>
      * Fallback implementations shouldn't perform anything that can be blocking, but we protect against it anyways in case someone doesn't abide by the contract.
@@ -809,6 +810,7 @@ import java.util.concurrent.atomic.AtomicReference;
                 logger.warn("Recovered from java.lang.Error by serving Hystrix fallback", originalException);
             }
 
+            //开启降级
             if (properties.fallbackEnabled().get()) {
                 /* fallback behavior is permitted so attempt */
 
@@ -819,6 +821,7 @@ import java.util.concurrent.atomic.AtomicReference;
                     }
                 };
 
+                //onNext 前执行 结果设置事件，事件通知
                 final Action1<R> markFallbackEmit = new Action1<R>() {
                     @Override
                     public void call(R r) {
@@ -829,6 +832,7 @@ import java.util.concurrent.atomic.AtomicReference;
                     }
                 };
 
+                //onCompleted 前执行 结果设置事件，事件通知
                 final Action0 markFallbackCompleted = new Action0() {
                     @Override
                     public void call() {
@@ -838,6 +842,7 @@ import java.util.concurrent.atomic.AtomicReference;
                     }
                 };
 
+                //降级执行失败，包装异常信息返回 - 发射源
                 final Func1<Throwable, Observable<R>> handleFallbackError = new Func1<Throwable, Observable<R>>() {
                     @Override
                     public Observable<R> call(Throwable t) {
@@ -871,8 +876,10 @@ import java.util.concurrent.atomic.AtomicReference;
                     }
                 };
 
+                //降级信号量 默认 10
                 final TryableSemaphore fallbackSemaphore = getFallbackSemaphore();
                 final AtomicBoolean semaphoreHasBeenReleased = new AtomicBoolean(false);
+                //信号量释放
                 final Action0 singleSemaphoreRelease = new Action0() {
                     @Override
                     public void call() {
@@ -887,7 +894,9 @@ import java.util.concurrent.atomic.AtomicReference;
                 // acquire a permit
                 if (fallbackSemaphore.tryAcquire()) {
                     try {
+                        //是否用户定义了降级方法
                         if (isFallbackUserDefined()) {
+                            //降级开始 钩子
                             executionHook.onFallbackStart(this);
                             fallbackExecutionChain = getFallbackObservable();
                         } else {
