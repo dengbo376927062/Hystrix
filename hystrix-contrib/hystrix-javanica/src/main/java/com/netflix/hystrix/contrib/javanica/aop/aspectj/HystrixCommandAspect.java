@@ -60,6 +60,7 @@ import static com.netflix.hystrix.contrib.javanica.utils.EnvUtils.isCompileWeavi
 import static com.netflix.hystrix.contrib.javanica.utils.ajc.AjcUtils.getAjcMethodAroundAdvice;
 
 /**
+ * HystrixCommand 切面
  * AspectJ aspect to process methods which annotated with {@link HystrixCommand} annotation.
  */
 @Aspect
@@ -85,15 +86,20 @@ public class HystrixCommandAspect {
 
     @Around("hystrixCommandAnnotationPointcut() || hystrixCollapserAnnotationPointcut()")
     public Object methodsAnnotatedWithHystrixCommand(final ProceedingJoinPoint joinPoint) throws Throwable {
+        //获取方法
         Method method = getMethodFromTarget(joinPoint);
         Validate.notNull(method, "failed to get method from joinPoint: %s", joinPoint);
         if (method.isAnnotationPresent(HystrixCommand.class) && method.isAnnotationPresent(HystrixCollapser.class)) {
             throw new IllegalStateException("method cannot be annotated with HystrixCommand and HystrixCollapser " +
                     "annotations at the same time");
         }
+        //元数据工厂获取 根据方法上 注解类型
         MetaHolderFactory metaHolderFactory = META_HOLDER_FACTORY_MAP.get(HystrixPointcutType.of(method));
+        //创建元数据信息
         MetaHolder metaHolder = metaHolderFactory.create(joinPoint);
+        //创建执行命令器
         HystrixInvokable invokable = HystrixCommandFactory.getInstance().create(metaHolder);
+        //获取执行类型
         ExecutionType executionType = metaHolder.isCollapserAnnotationPresent() ?
                 metaHolder.getCollapserExecutionType() : metaHolder.getExecutionType();
 
@@ -183,8 +189,9 @@ public class HystrixCommandAspect {
             MetaHolder.Builder builder = MetaHolder.builder()
                     .args(args).method(method).obj(obj).proxyObj(proxy)
                     .joinPoint(joinPoint);
-
+            //设置降级方法 - 根据方法上注解中的 降级名称
             setFallbackMethod(builder, obj.getClass(), method);
+            //设置默认配置 -> @DefaultProperties
             builder = setDefaultProperties(builder, obj.getClass(), joinPoint);
             return builder;
         }
@@ -265,6 +272,7 @@ public class HystrixCommandAspect {
         @Override
         public MetaHolder create(Object proxy, Method method, Object obj, Object[] args, final ProceedingJoinPoint joinPoint) {
             HystrixCommand hystrixCommand = method.getAnnotation(HystrixCommand.class);
+            //获取执行类型 同步、异步、观察模式
             ExecutionType executionType = ExecutionType.getExecutionType(method.getReturnType());
             MetaHolder.Builder builder = metaHolderBuilder(proxy, method, obj, args, joinPoint);
             if (isCompileWeaving()) {
