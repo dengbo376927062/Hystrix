@@ -102,7 +102,7 @@ public class HystrixTimer {
                 }
             }
         };
-
+        //执行timeout 定时任务
         ScheduledFuture<?> f = executor.get().getThreadPool().scheduleAtFixedRate(r, listener.getIntervalTimeInMilliseconds(), listener.getIntervalTimeInMilliseconds(), TimeUnit.MILLISECONDS);
         return new TimerReference(listener, f);
     }
@@ -145,6 +145,7 @@ public class HystrixTimer {
         private volatile boolean initialized;
 
         /**
+         * 初始化 time out 线程池
          * We want this only done once when created in compareAndSet so use an initialize method
          */
         public void initialize() {

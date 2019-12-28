@@ -1052,7 +1052,7 @@ import java.util.concurrent.atomic.AtomicReference;
         return getFallbackOrThrowException(this, HystrixEventType.TIMEOUT, FailureType.TIMEOUT, "timed-out", new TimeoutException());
     }
 
-    //time out Fallback
+    //参数异常等错误请求（不是执行用户方法异常） Fallback
     private Observable<R> handleBadRequestByEmittingError(Exception underlying) {
         Exception toEmit = underlying;
 
@@ -1174,6 +1174,7 @@ import java.util.concurrent.atomic.AtomicReference;
         return false;
     }
 
+    //time out 执行处理
     private static class HystrixObservableTimeoutOperator<R> implements Operator<R, R> {
 
         final AbstractCommand<R> originalCommand;
@@ -1190,11 +1191,12 @@ import java.util.concurrent.atomic.AtomicReference;
 
             //capture the HystrixRequestContext upfront so that we can use it in the timeout thread later
             final HystrixRequestContext hystrixRequestContext = HystrixRequestContext.getContextForCurrentThread();
-
+            // time out 监听器
             TimerListener listener = new TimerListener() {
 
                 @Override
                 public void tick() {
+                    //CAS 未执行 -> 超时  如果不是未执行状态，证明已经执行完成，不用处理
                     // if we can go from NOT_EXECUTED to TIMED_OUT then we do the timeout codepath
                     // otherwise it means we lost a race and the run() execution completed or did not start
                     if (originalCommand.isCommandTimedOut.compareAndSet(TimedOutStatus.NOT_EXECUTED, TimedOutStatus.TIMED_OUT)) {
@@ -1204,6 +1206,7 @@ import java.util.concurrent.atomic.AtomicReference;
                         // shut down the original request
                         s.unsubscribe();
 
+                        //执行错误通知
                         final HystrixContextRunnable timeoutRunnable = new HystrixContextRunnable(originalCommand.concurrencyStrategy, hystrixRequestContext, new Runnable() {
 
                             @Override
@@ -1218,18 +1221,22 @@ import java.util.concurrent.atomic.AtomicReference;
                     }
                 }
 
+                //time out 时间
                 @Override
                 public int getIntervalTimeInMilliseconds() {
                     return originalCommand.properties.executionTimeoutInMilliseconds().get();
                 }
             };
 
+            //启动定时任务
             final Reference<TimerListener> tl = HystrixTimer.getInstance().addTimerListener(listener);
 
             // set externally so execute/queue can see this
+            //保存该TimerListener，外部可对其处理
             originalCommand.timeoutTimer.set(tl);
 
             /**
+             * 包装 child 收到通知时 对 TimerListener 做额外处理
              * If this subscriber receives values it means the parent succeeded/completed
              */
             Subscriber<R> parent = new Subscriber<R>() {
@@ -1662,7 +1669,7 @@ import java.util.concurrent.atomic.AtomicReference;
      * AtomicInteger achieves the same behavior and performance without the more complex implementation of the actual Semaphore class using AbstractQueueSynchronizer.
      */
     /* package */static class TryableSemaphoreActual implements TryableSemaphore {
-        protected final HystrixProperty<Integer> numberOfPermits;
+        protected final HystrixProperty<Integer> numberOfPermits;//可动态自定义设置信号量数
         private final AtomicInteger count = new AtomicInteger(0);
 
         public TryableSemaphoreActual(HystrixProperty<Integer> numberOfPermits) {
