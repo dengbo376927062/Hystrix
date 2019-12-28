@@ -95,6 +95,7 @@ public class HealthCountsStream extends BucketedRollingCounterStream<HystrixComm
 
     private HealthCountsStream(final HystrixCommandKey commandKey, final int numBuckets, final int bucketSizeInMs,
                                Func2<long[], HystrixCommandCompletion, long[]> reduceCommandCompletion) {
+        //HystrixCommandCompletionStream 命令执行完成数据流，原始指标数据来源
         super(HystrixCommandCompletionStream.getInstance(commandKey), numBuckets, bucketSizeInMs, reduceCommandCompletion, healthCheckAccumulator);
     }
 

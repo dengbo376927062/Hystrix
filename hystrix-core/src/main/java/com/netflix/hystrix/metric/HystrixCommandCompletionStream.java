@@ -25,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 /**
+ * 命令完成流 数据来源 -> HystrixThreadEventStream
  * Per-Command stream of {@link HystrixCommandCompletion}s.  This gets written to by {@link HystrixThreadEventStream}s.
  * Events are emitted synchronously in the same thread that performs the command execution.
  */
@@ -56,8 +57,9 @@ public class HystrixCommandCompletionStream implements HystrixEventStream<Hystri
 
     HystrixCommandCompletionStream(final HystrixCommandKey commandKey) {
         this.commandKey = commandKey;
-
+        //命令完成写入主题
         this.writeOnlySubject = new SerializedSubject<HystrixCommandCompletion, HystrixCommandCompletion>(PublishSubject.<HystrixCommandCompletion>create());
+        //转换只读数据流（为滑动窗口推送数据）
         this.readOnlyStream = writeOnlySubject.share();
     }
 
@@ -65,6 +67,7 @@ public class HystrixCommandCompletionStream implements HystrixEventStream<Hystri
         streams.clear();
     }
 
+    //写入
     public void write(HystrixCommandCompletion event) {
         writeOnlySubject.onNext(event);
     }

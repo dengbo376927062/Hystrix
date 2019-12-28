@@ -48,6 +48,7 @@ public abstract class BucketedCounterStream<Event extends HystrixEvent, Bucket, 
     protected BucketedCounterStream(final HystrixEventStream<Event> inputEventStream, final int numBuckets, final int bucketSizeInMs,
                                     final Func2<Bucket, Event, Bucket> appendRawEventToBucket) {
         this.numBuckets = numBuckets;
+        //桶内 命令执行事件计数聚合
         this.reduceBucketToSummary = new Func1<Observable<Event>, Observable<Bucket>>() {
             @Override
             public Observable<Bucket> call(Observable<Event> eventBucket) {
@@ -65,8 +66,8 @@ public abstract class BucketedCounterStream<Event extends HystrixEvent, Bucket, 
             public Observable<Bucket> call() {
                 return inputEventStream
                         .observe()
-                        .window(bucketSizeInMs, TimeUnit.MILLISECONDS) //bucket it by the counter window so we can emit to the next operator in time chunks, not on every OnNext
-                        .flatMap(reduceBucketToSummary)                //for a given bucket, turn it into a long array containing counts of event types
+                        .window(bucketSizeInMs, TimeUnit.MILLISECONDS)//一定时间累积发射，也就是桶的时间长度 默认1000ms //bucket it by the counter window so we can emit to the next operator in time chunks, not on every OnNext
+                        .flatMap(reduceBucketToSummary)   //单位时间桶内计数聚合   //for a given bucket, turn it into a long array containing counts of event types
                         .startWith(emptyEventCountsToStart);           //start it with empty arrays to make consumer logic as generic as possible (windows are always full)
             }
         });

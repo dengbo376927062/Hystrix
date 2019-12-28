@@ -80,6 +80,7 @@ public class HystrixThreadEventStream {
         }
     };
 
+    //命令执行完成，结果写入分享流
     private static final Action1<HystrixCommandCompletion> writeCommandCompletionsToShardedStreams = new Action1<HystrixCommandCompletion>() {
         @Override
         public void call(HystrixCommandCompletion commandCompletion) {
@@ -108,11 +109,13 @@ public class HystrixThreadEventStream {
         writeOnlyCommandCompletionSubject = PublishSubject.create();
         writeOnlyCollapserSubject = PublishSubject.create();
 
+        //命令开始写入主题（滚动最大并发流使用）
         writeOnlyCommandStartSubject
                 .onBackpressureBuffer()
                 .doOnNext(writeCommandStartsToShardedStreams)
                 .unsafeSubscribe(Subscribers.empty());
 
+        //命令完成写入主题
         writeOnlyCommandCompletionSubject
                 .onBackpressureBuffer()
                 .doOnNext(writeCommandCompletionsToShardedStreams)
@@ -140,6 +143,7 @@ public class HystrixThreadEventStream {
         writeOnlyCommandStartSubject.onNext(event);
     }
 
+    //执行完成，执行结果时间发射
     public void executionDone(ExecutionResult executionResult, HystrixCommandKey commandKey, HystrixThreadPoolKey threadPoolKey) {
         HystrixCommandCompletion event = HystrixCommandCompletion.from(executionResult, commandKey, threadPoolKey);
         writeOnlyCommandCompletionSubject.onNext(event);

@@ -175,8 +175,11 @@ public class HystrixCommandMetrics extends HystrixMetrics {
     private final HystrixThreadPoolKey threadPoolKey;
     private final AtomicInteger concurrentExecutionCount = new AtomicInteger();
 
+    //滑动窗口推送流（总数、错误数、错误比例）
     private HealthCountsStream healthCountsStream;
+    //滑动窗口 事件计数流
     private final RollingCommandEventCounterStream rollingCommandEventCounterStream;
+    //累计 事件计数流
     private final CumulativeCommandEventCounterStream cumulativeCommandEventCounterStream;
     private final RollingCommandLatencyDistributionStream rollingCommandLatencyDistributionStream;
     private final RollingCommandUserLatencyDistributionStream rollingCommandUserLatencyDistributionStream;
@@ -188,7 +191,7 @@ public class HystrixCommandMetrics extends HystrixMetrics {
         this.group = commandGroup;
         this.threadPoolKey = threadPoolKey;
         this.properties = properties;
-
+        //核心 滑动窗口 断路器数据来源
         healthCountsStream = HealthCountsStream.getInstance(key, properties);
         rollingCommandEventCounterStream = RollingCommandEventCounterStream.getInstance(key, properties);
         cumulativeCommandEventCounterStream = CumulativeCommandEventCounterStream.getInstance(key, properties);
