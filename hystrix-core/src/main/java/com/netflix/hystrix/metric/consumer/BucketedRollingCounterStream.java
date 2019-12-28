@@ -47,7 +47,7 @@ public abstract class BucketedRollingCounterStream<Event extends HystrixEvent, B
             }
         };
         this.sourceStream = bucketedStream      //stream broken up into buckets
-                .window(numBuckets, 1)   //累积多个桶发射 默认10       //emit overlapping windows of buckets
+                .window(numBuckets, 1)   //获取多个桶发射 默认10  skip 每次跳过一个桶(每次滑动一个桶)     //emit overlapping windows of buckets
                 .flatMap(reduceWindowToSummary) //convert a window of bucket-summaries into a single summary
                 .doOnSubscribe(new Action0() {
                     @Override
